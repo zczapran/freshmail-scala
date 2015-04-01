@@ -2,7 +2,7 @@ package com.zczapran.freshmail.http
 
 import akka.actor.ActorSystem
 import com.zczapran.freshmail.model.Auth
-import spray.http.HttpHeaders.{RawHeader, `Content-Type`}
+import spray.http.HttpHeaders.RawHeader
 import spray.http._
 import spray.json._
 import reflect._
@@ -19,7 +19,7 @@ class Client(
   apiSecret: String,
   pipeline: HttpRequest => Future[HttpResponse]
 )(implicit val system: ActorSystem, ec: ExecutionContext) {
-  StatusCodes.registerCustom(555, "Subscriber already exist in this subscribers list")
+  Try(StatusCodes.registerCustom(555, "Subscriber already exist in this subscribers list"))
 
   def send[T](
     method: HttpMethod,
@@ -62,25 +62,26 @@ class Client(
     obj: Option[T] = None,
     handleEntity: String => Result[U]
   )(implicit writer: JsonWriter[T]): Future[Result[U]] = {
+    val path = uri.path.toString()
+
     val (auth, entity) = method match {
       case HttpMethods.GET =>
-        Auth.build(apiKey, uri.path.toString(), "", apiSecret) -> HttpEntity.Empty
+        Auth.build(apiKey, path, "", apiSecret) -> HttpEntity.Empty
       case _ =>
-        val payload = obj.map(_.toJson.compactPrint)
-        Auth.build(apiKey, uri.path.toString(), payload.getOrElse(""), apiSecret) ->
+        val payload = if (path == "/rest/ping") None else obj.map(_.toJson.compactPrint)
+        Auth.build(apiKey, path, payload.getOrElse(""), apiSecret) ->
           payload.map(HttpEntity(ContentType(MediaTypes.`application/json`), _)).getOrElse(HttpEntity.Empty)
     }
 
-    val req: HttpRequest =
-      HttpRequest(
-        method = method,
-        uri = uri,
-        headers =
-          RawHeader("X-Rest-ApiKey", auth.key) ::
-          RawHeader("X-Rest-ApiSign", auth.sign) ::
-          Nil,
-        entity = entity
-      )
+    val req: HttpRequest = HttpRequest(
+      method = method,
+      uri = uri,
+      headers =
+        RawHeader("X-Rest-ApiKey", auth.key) ::
+        RawHeader("X-Rest-ApiSign", auth.sign) ::
+        Nil,
+      entity = entity
+    )
 
     pipeline(req).map { res =>
       res.status match {
