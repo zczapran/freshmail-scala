@@ -6,6 +6,8 @@ version := "0.1"
 
 scalaVersion := "2.11.6"
 
+organization  := "com.zczapran"
+
 resolvers ++= Seq(
   "Sonatype Releases" at "http://oss.sonatype.org/content/repositories/releases",
   "Typesafe repository" at "http://repo.typesafe.com/typesafe/releases/"
